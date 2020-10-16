@@ -22,12 +22,10 @@ while($true) {
     
     # Enter an AD server here
     $adServer = "myserver.example.com"
-    # Misc Variable Declarations
-    $queryADforPC = Get-ADComputer $Hostname -Properties Description,ManagedBy,IPv4Address,DNSHostName -Server $adServer":3268"
-    $dnsName = $queryADforPC.DNSHostName
 
     # Run the Get-ADComputer command using the provided hostname and catch the error if the computer object isn't in AD
     try {
+        $queryADforPC = Get-ADComputer $Hostname -Properties Description,ManagedBy,IPv4Address,DNSHostName -Server $adServer":3268"
         $queryADforPC | Format-List Name,Description,ManagedBy,IPv4Address
      }
     catch [Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException] {
@@ -46,6 +44,7 @@ while($true) {
 
      try {
         if ($psVersion -gt 5) {
+            $dnsName = $queryADforPC.DNSHostName
             $testPCnew = Test-Connection $dnsName -Count 2 -TimeoutSeconds 1 -Quiet -ea SilentlyContinue
             if ($testPCnew -eq $true) {
                 Write-Host "$dnsName is online`n`n" -ForegroundColor Cyan

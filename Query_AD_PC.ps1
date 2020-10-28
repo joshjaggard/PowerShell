@@ -42,9 +42,9 @@ while($true) {
     # The PS console version is used to insert the -TimeoutSeconds flag for newer versions that support it. This speeds up the connectivity check.
     $psVersion = $host.version.major
 
-     try {
+    try {
         if ($psVersion -gt 5) {
-            $dnsName = $queryADforPC.DNSHostName
+            $dnsName = Get-ADComputer $Hostname -Server $adServer":3268" | Select-Object -ExpandProperty DNSHostName
             $testPCnew = Test-Connection $dnsName -Count 2 -TimeoutSeconds 1 -Quiet -ea SilentlyContinue
             if ($testPCnew -eq $true) {
                 Write-Host "$dnsName is online`n`n" -ForegroundColor Cyan
@@ -57,6 +57,7 @@ while($true) {
             }
         }
         elseif ($psVersion -le 5) {
+            $dnsName = Get-ADComputer $Hostname -Server $adServer":3268" | Select-Object -ExpandProperty DNSHostName
             $testPC = Test-Connection $dnsName -Count 2 -Quiet -ea SilentlyContinue
             if ($testPC -eq $true){
                 Write-Host "$dnsName is online`n`n" -ForegroundColor Cyan

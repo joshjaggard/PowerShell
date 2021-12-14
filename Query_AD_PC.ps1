@@ -1,4 +1,4 @@
-# Script to check a PC against AD and get the description to see what user it belongs to
+# Script to check a PC hostname against AD and get the description to see what user it belongs to
 # Author: Josh Jaggard
 
 $textDivider = "#" * 85
@@ -7,7 +7,7 @@ Write-Host "`n$textDivider`n This script checks a PC hostname against AD and pro
 # Prompt for a hostname and ensure input is provided
 while($true) {
     do {
-        $Hostname = Read-Host 'Enter a PC hostname or type "end" to exit'
+        $Hostname = Read-Host 'Enter a PC hostname or IP address. Type "end" to exit'
         if ($Hostname -eq "") {
             Write-Host "No input detected. Please enter a PC hostname to continue...`n" -ForegroundColor Yellow
         }
@@ -19,13 +19,37 @@ while($true) {
             Write-Host "`nFetching info for $Hostname...`n"
         }
     } until ($Hostname -ne "")
+
+    # Attempt to do a reverse lookup of $Hostname in the event that it is an IP address. Catch if the IP didn't return a PTR. Otherwise pass the hostname through to the AD query.
+    if ($Hostname -as [ipaddress]) {
+        Write-Host "Resolving hostname for $Hostname..."
+        try {
+            $DNS = Resolve-DnsName $Hostname -DnsOnly -Type PTR -ErrorAction Stop
+            $Hostname = $DNS.NameHost.Split('.')[0]
+            $fullHostname = $DNS.NameHost
+        }
+        catch {
+            if ($Error[0].Exception.Message.Contains('in-addr.arpa')){
+                Write-Host "The IP you entered did not return a PTR record in DNS. Try again. `n" -ForegroundColor Red
+                Continue
+            }
+        }
+        Write-Host "The hostname for your IP is $fullHostname.`n" 
+    }
     
-    # Enter an AD server here
-    $adServer = "myserver.example.com"
+    else {
+        # Do nothing here and continue with the original hostname entered
+    }
+    
+    # Specify an AD server here
+    # Setting the Global Catalog port to search the entire forest
+    $adServer = "<your-server-here>"
+    $gcPort = ":3268"
+    $adServerPort = $adServer + $gcPort
 
     # Run the Get-ADComputer command using the provided hostname and catch the error if the computer object isn't in AD
     try {
-        $queryADforPC = Get-ADComputer $Hostname -Properties Description,ManagedBy,IPv4Address,DNSHostName -Server $adServer":3268"
+        $queryADforPC = Get-ADComputer $Hostname -Properties Description,ManagedBy,IPv4Address,DNSHostName -Server $adServerPort
         $queryADforPC | Format-List Name,Description,ManagedBy,IPv4Address
      }
     catch [Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException] {
@@ -44,7 +68,7 @@ while($true) {
 
     try {
         if ($psVersion -gt 5) {
-            $dnsName = Get-ADComputer $Hostname -Server $adServer":3268" | Select-Object -ExpandProperty DNSHostName
+            $dnsName = Get-ADComputer $Hostname -Server $adServerPort | Select-Object -ExpandProperty DNSHostName
             $testPCnew = Test-Connection $dnsName -Count 2 -TimeoutSeconds 1 -Quiet -ea SilentlyContinue
             if ($testPCnew -eq $true) {
                 Write-Host "$dnsName is online`n`n" -ForegroundColor Cyan
@@ -57,7 +81,7 @@ while($true) {
             }
         }
         elseif ($psVersion -le 5) {
-            $dnsName = Get-ADComputer $Hostname -Server $adServer":3268" | Select-Object -ExpandProperty DNSHostName
+            $dnsName = Get-ADComputer $Hostname -Server $adServerPort | Select-Object -ExpandProperty DNSHostName
             $testPC = Test-Connection $dnsName -Count 2 -Quiet -ea SilentlyContinue
             if ($testPC -eq $true){
                 Write-Host "$dnsName is online`n`n" -ForegroundColor Cyan
